@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="宿題時間と休憩時間を交互に知らせるシンプルな宿題タイマー">
     <title>宿題タイマー</title>
+    <script src="vendor/tone/Tone.js"></script>
     <style>
         :root {
             color-scheme: light;
@@ -371,7 +372,7 @@
         let hasStartedOnce = false;
         let settingsMessageTimer = null;
         let settingsApplyTimer = null;
-        let audioContext = null;
+        let toneSynth = null;
 
         function clampMinutes(value, fallback) {
             const parsed = Number.parseInt(value, 10);
@@ -472,63 +473,44 @@
             }, 300);
         }
 
-        function getAudioContext() {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContextClass) {
+        function getToneSynth() {
+            if (!window.Tone) {
                 return null;
             }
 
-            if (!audioContext) {
-                audioContext = new AudioContextClass();
+            if (!toneSynth) {
+                toneSynth = new Tone.Synth({
+                    volume: 15
+                }).toDestination();
             }
 
-            if (audioContext.state === 'suspended') {
-                audioContext.resume().catch(() => {});
-            }
-
-            return audioContext;
-        }
-
-        function playTone(context, frequency, startTime, duration) {
-            const oscillator = context.createOscillator();
-            const gain = context.createGain();
-            const attack = 0.005;
-            const decay = 0.1;
-            const sustain = 0.3;
-            const release = 1;
-            const peakGain = 0.32;
-            const sustainGain = peakGain * sustain;
-            const releaseStart = startTime + duration;
-
-            oscillator.type = 'triangle';
-            oscillator.frequency.setValueAtTime(frequency, startTime);
-            gain.gain.setValueAtTime(0.0001, startTime);
-            gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
-            gain.gain.linearRampToValueAtTime(sustainGain, startTime + attack + decay);
-            gain.gain.setValueAtTime(sustainGain, releaseStart);
-            gain.gain.exponentialRampToValueAtTime(0.0001, releaseStart + release);
-
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-            oscillator.start(startTime);
-            oscillator.stop(releaseStart + release + 0.03);
+            return toneSynth;
         }
 
         function playSound(isNextStudy) {
-            const context = getAudioContext();
-            if (!context) {
+            const synth = getToneSynth();
+            if (!synth) {
                 return;
             }
 
-            const now = context.currentTime + 0.03;
-            const notes = isNextStudy ? [523.25, 659.25, 783.99] : [783.99, 659.25, 523.25];
-            notes.forEach((frequency, index) => {
-                playTone(context, frequency, now + index * 0.15, index === notes.length - 1 ? 0.4 : 0.1);
-            });
+            Tone.start();
+            const now = Tone.now();
+            if (isNextStudy) {
+                synth.triggerAttackRelease('C5', '0.1', now);
+                synth.triggerAttackRelease('E5', '0.1', now + 0.15);
+                synth.triggerAttackRelease('G5', '0.4', now + 0.3);
+            } else {
+                synth.triggerAttackRelease('G5', '0.1', now);
+                synth.triggerAttackRelease('E5', '0.1', now + 0.15);
+                synth.triggerAttackRelease('C5', '0.4', now + 0.3);
+            }
         }
 
         function unlockSound() {
-            getAudioContext();
+            if (window.Tone) {
+                Tone.start();
+            }
+            getToneSynth();
         }
 
         function updateDisplay() {
