@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="宿題時間と休憩時間を交互に知らせるシンプルな宿題タイマー">
+    <title>宿題タイマー</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --study-bg: #e0e7ff;
+            --break-bg: #fef3c7;
+            --text: #0f172a;
+            --muted: #475569;
+            --line: #e2e8f0;
+            --panel: #ffffff;
+            --soft: #f8fafc;
+            --study: #4f46e5;
+            --break: #b45309;
+            --focus: rgba(79, 70, 229, 0.28);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100svh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: var(--study-bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            transition: background-color 0.5s ease;
+        }
+
+        body.mode-break {
+            background: var(--break-bg);
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .timer-card {
+            width: min(100%, 420px);
+            padding: 32px;
+            border-radius: 8px;
+            background: var(--panel);
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+            text-align: center;
+        }
+
+        .title {
+            margin: 0 0 8px;
+            color: #1e293b;
+            font-size: 30px;
+            line-height: 1.2;
+        }
+
+        .status {
+            min-height: 28px;
+            margin: 0 0 24px;
+            color: var(--study);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .mode-break .status {
+            color: var(--break);
+        }
+
+        .icon-button {
+            position: relative;
+            width: 128px;
+            height: 128px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            border: 0;
+            border-radius: 50%;
+            background: transparent;
+            transition: transform 0.16s ease, background-color 0.16s ease;
+        }
+
+        .icon-button:hover {
+            transform: scale(1.04);
+            background: var(--soft);
+        }
+
+        .icon-button:focus-visible,
+        .timer-button:focus-visible,
+        .reset-button:focus-visible,
+        .minute-input:focus-visible {
+            outline: 0;
+            box-shadow: 0 0 0 4px var(--focus);
+        }
+
+        .mode-icon {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 80px;
+            line-height: 1;
+            opacity: 1;
+            transition: opacity 0.45s ease;
+        }
+
+        .mode-icon.is-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .timer-button {
+            width: 100%;
+            padding: 16px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            transition: background-color 0.16s ease;
+        }
+
+        .timer-button:hover {
+            background: var(--soft);
+        }
+
+        .timer-display {
+            color: var(--text);
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+            font-size: 72px;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: 0;
+            transition: transform 0.1s ease-in-out;
+        }
+
+        .settings-panel {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid #f1f5f9;
+            text-align: left;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .settings-title {
+            margin: 0;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.4;
+        }
+
+        .reset-button {
+            flex: 0 0 auto;
+            min-height: 32px;
+            padding: 6px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 700;
+            transition: background-color 0.16s ease;
+        }
+
+        .reset-button:hover {
+            background: var(--soft);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .setting-field {
+            display: block;
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--soft);
+        }
+
+        .setting-label {
+            display: block;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .minute-input {
+            width: 100%;
+            min-width: 0;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            color: var(--text);
+            font-size: 24px;
+            font-weight: 800;
+            line-height: 1.2;
+            text-align: right;
+        }
+
+        .minute-input::-webkit-outer-spin-button,
+        .minute-input::-webkit-inner-spin-button {
+            margin: 0;
+        }
+
+        .minute-suffix {
+            padding-bottom: 8px;
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .settings-message {
+            min-height: 20px;
+            margin: 12px 0 0;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.5;
+            text-align: center;
+        }
+
+        .hint {
+            min-height: 20px;
+            margin: 16px 0 0;
+            color: #334155;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+
+        .is-pulsing {
+            animation: pulse 1.8s ease-in-out infinite;
+        }
+
+        .click-anim {
+            transform: scale(0.95);
+        }
+
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.72;
+            }
+        }
+
+        @media (max-width: 430px) {
+            body {
+                padding: 16px;
+            }
+
+            .timer-card {
+                padding: 24px 18px;
+            }
+
+            .timer-display {
+                font-size: 60px;
+            }
+
+            .settings-grid {
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="mode-study">
+    <main class="timer-card">
+        <h1 class="title">宿題タイマー</h1>
+
+        <p id="status" class="status">宿題時間</p>
+
+        <button id="icon-container" class="icon-button" type="button" title="クリックでモード切替 / リセット" aria-label="モード切替">
+            <span id="study-icon" class="mode-icon" aria-hidden="true">📖</span>
+            <span id="break-icon" class="mode-icon is-hidden" aria-hidden="true">🎮</span>
+        </button>
+
+        <button id="timer-container" class="timer-button" type="button" title="クリックでスタート / 一時停止" aria-label="タイマーを開始">
+            <span id="timer" class="timer-display">05:00</span>
+        </button>
+
+        <section class="settings-panel" aria-labelledby="settings-title">
+            <div class="settings-header">
+                <h2 id="settings-title" class="settings-title">時間設定</h2>
+                <button id="reset-settings" class="reset-button" type="button">初期値</button>
+            </div>
+
+            <div class="settings-grid">
+                <label class="setting-field" for="study-minutes">
+                    <span class="setting-label">宿題</span>
+                    <span class="input-row">
+                        <input id="study-minutes" class="minute-input" type="number" inputmode="numeric" min="1" max="99" step="1">
+                        <span class="minute-suffix">分</span>
+                    </span>
+                </label>
+
+                <label class="setting-field" for="break-minutes">
+                    <span class="setting-label">休憩</span>
+                    <span class="input-row">
+                        <input id="break-minutes" class="minute-input" type="number" inputmode="numeric" min="1" max="99" step="1">
+                        <span class="minute-suffix">分</span>
+                    </span>
+                </label>
+            </div>
+
+            <p id="settings-message" class="settings-message" aria-live="polite"></p>
+        </section>
+
+        <p id="hint-text" class="hint is-pulsing">アイコンか数字をクリックしてスタート</p>
+    </main>
+
+    <script>
+        const DEFAULT_SETTINGS = Object.freeze({
+            studyMinutes: 5,
+            breakMinutes: 3
+        });
+        const STORAGE_KEY = 'homeworkTimer.settings.v1';
+        const MIN_MINUTES = 1;
+        const MAX_MINUTES = 99;
+
+        const timerDisplay = document.getElementById('timer');
+        const timerContainer = document.getElementById('timer-container');
+        const statusDisplay = document.getElementById('status');
+        const studyIcon = document.getElementById('study-icon');
+        const breakIcon = document.getElementById('break-icon');
+        const iconContainer = document.getElementById('icon-container');
+        const hintText = document.getElementById('hint-text');
+        const studyMinutesInput = document.getElementById('study-minutes');
+        const breakMinutesInput = document.getElementById('break-minutes');
+        const resetSettingsButton = document.getElementById('reset-settings');
+        const settingsMessage = document.getElementById('settings-message');
+
+        let timerInterval = null;
+        let isRunning = false;
+        let isStudyTime = true;
+        let settings = loadSettings();
+        let timeLeft = settings.studyMinutes * 60;
+        let hasStartedOnce = false;
+        let settingsMessageTimer = null;
+        let settingsApplyTimer = null;
+        let audioContext = null;
+
+        function clampMinutes(value, fallback) {
+            const parsed = Number.parseInt(value, 10);
+            if (!Number.isFinite(parsed)) {
+                return fallback;
+            }
+            return Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, parsed));
+        }
+
+        function loadSettings() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (!saved) {
+                    return { ...DEFAULT_SETTINGS };
+                }
+
+                const parsed = JSON.parse(saved);
+                return {
+                    studyMinutes: clampMinutes(parsed.studyMinutes, DEFAULT_SETTINGS.studyMinutes),
+                    breakMinutes: clampMinutes(parsed.breakMinutes, DEFAULT_SETTINGS.breakMinutes)
+                };
+            } catch (error) {
+                return { ...DEFAULT_SETTINGS };
+            }
+        }
+
+        function saveSettings(showMessage = true) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+                if (showMessage) {
+                    showSettingsMessage('保存しました');
+                }
+            } catch (error) {
+                if (showMessage) {
+                    showSettingsMessage('保存できませんでした');
+                }
+            }
+        }
+
+        function showSettingsMessage(message) {
+            settingsMessage.textContent = message;
+            clearTimeout(settingsMessageTimer);
+            settingsMessageTimer = setTimeout(() => {
+                settingsMessage.textContent = '';
+            }, 1400);
+        }
+
+        function getModeSeconds() {
+            return (isStudyTime ? settings.studyMinutes : settings.breakMinutes) * 60;
+        }
+
+        function updateSettingsInputs() {
+            studyMinutesInput.value = settings.studyMinutes;
+            breakMinutesInput.value = settings.breakMinutes;
+        }
+
+        function resetCurrentTimerIfStopped() {
+            if (isRunning) {
+                return;
+            }
+
+            timeLeft = getModeSeconds();
+            hasStartedOnce = false;
+        }
+
+        function applySettingsFromInputs() {
+            clearTimeout(settingsApplyTimer);
+
+            const nextSettings = {
+                studyMinutes: clampMinutes(studyMinutesInput.value, settings.studyMinutes),
+                breakMinutes: clampMinutes(breakMinutesInput.value, settings.breakMinutes)
+            };
+
+            const changed = nextSettings.studyMinutes !== settings.studyMinutes
+                || nextSettings.breakMinutes !== settings.breakMinutes;
+
+            settings = nextSettings;
+            updateSettingsInputs();
+
+            if (!changed) {
+                return;
+            }
+
+            saveSettings();
+            resetCurrentTimerIfStopped();
+            updateDisplay();
+        }
+
+        function scheduleSettingsApply() {
+            clearTimeout(settingsApplyTimer);
+
+            settingsApplyTimer = setTimeout(() => {
+                if (studyMinutesInput.value === '' || breakMinutesInput.value === '') {
+                    return;
+                }
+
+                applySettingsFromInputs();
+            }, 300);
+        }
+
+        function getAudioContext() {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+                return null;
+            }
+
+            if (!audioContext) {
+                audioContext = new AudioContextClass();
+            }
+
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => {});
+            }
+
+            return audioContext;
+        }
+
+        function playTone(context, frequency, startTime, duration) {
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            const attack = 0.005;
+            const decay = 0.1;
+            const sustain = 0.3;
+            const release = 1;
+            const peakGain = 0.32;
+            const sustainGain = peakGain * sustain;
+            const releaseStart = startTime + duration;
+
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(frequency, startTime);
+            gain.gain.setValueAtTime(0.0001, startTime);
+            gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+            gain.gain.linearRampToValueAtTime(sustainGain, startTime + attack + decay);
+            gain.gain.setValueAtTime(sustainGain, releaseStart);
+            gain.gain.exponentialRampToValueAtTime(0.0001, releaseStart + release);
+
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start(startTime);
+            oscillator.stop(releaseStart + release + 0.03);
+        }
+
+        function playSound(isNextStudy) {
+            const context = getAudioContext();
+            if (!context) {
+                return;
+            }
+
+            const now = context.currentTime + 0.03;
+            const notes = isNextStudy ? [523.25, 659.25, 783.99] : [783.99, 659.25, 523.25];
+            notes.forEach((frequency, index) => {
+                playTone(context, frequency, now + index * 0.15, index === notes.length - 1 ? 0.4 : 0.1);
+            });
+        }
+
+        function unlockSound() {
+            getAudioContext();
+        }
+
+        function updateDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            if (isStudyTime) {
+                statusDisplay.textContent = '宿題時間';
+                document.body.classList.add('mode-study');
+                document.body.classList.remove('mode-break');
+            } else {
+                statusDisplay.textContent = '休憩時間';
+                document.body.classList.add('mode-break');
+                document.body.classList.remove('mode-study');
+            }
+
+            studyIcon.classList.toggle('is-hidden', !isStudyTime);
+            breakIcon.classList.toggle('is-hidden', isStudyTime);
+
+            if (isRunning) {
+                hintText.textContent = '数字をクリックして一時停止';
+                hintText.classList.remove('is-pulsing');
+                timerContainer.setAttribute('aria-label', 'タイマーを一時停止');
+            } else {
+                hintText.textContent = hasStartedOnce ? '数字をクリックして再開' : 'アイコンか数字をクリックしてスタート';
+                hintText.classList.add('is-pulsing');
+                timerContainer.setAttribute('aria-label', hasStartedOnce ? 'タイマーを再開' : 'タイマーを開始');
+            }
+        }
+
+        function startTimer() {
+            if (isRunning) {
+                return;
+            }
+
+            playSound(isStudyTime);
+            isRunning = true;
+            hasStartedOnce = true;
+            timerInterval = setInterval(countdown, 1000);
+            updateDisplay();
+        }
+
+        function pauseTimer() {
+            if (!isRunning) {
+                return;
+            }
+
+            isRunning = false;
+            clearInterval(timerInterval);
+            updateDisplay();
+        }
+
+        function countdown() {
+            if (timeLeft > 0) {
+                timeLeft--;
+            } else {
+                isStudyTime = !isStudyTime;
+                playSound(isStudyTime);
+                timeLeft = getModeSeconds();
+            }
+
+            updateDisplay();
+        }
+
+        function toggleMode() {
+            unlockSound();
+            clearInterval(timerInterval);
+
+            isStudyTime = !isStudyTime;
+            timeLeft = getModeSeconds();
+
+            playSound(isStudyTime);
+
+            isRunning = true;
+            timerInterval = setInterval(countdown, 1000);
+            updateDisplay();
+        }
+
+        function animatePress(element) {
+            element.classList.add('click-anim');
+            setTimeout(() => element.classList.remove('click-anim'), 100);
+        }
+
+        function toggleTimer() {
+            unlockSound();
+
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+
+            animatePress(timerDisplay);
+        }
+
+        [studyMinutesInput, breakMinutesInput].forEach((input) => {
+            input.addEventListener('input', scheduleSettingsApply);
+            input.addEventListener('change', applySettingsFromInputs);
+            input.addEventListener('blur', applySettingsFromInputs);
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.currentTarget.blur();
+                }
+            });
+        });
+
+        resetSettingsButton.addEventListener('click', () => {
+            settings = { ...DEFAULT_SETTINGS };
+            updateSettingsInputs();
+            saveSettings();
+            resetCurrentTimerIfStopped();
+            updateDisplay();
+        });
+
+        iconContainer.addEventListener('click', () => {
+            animatePress(iconContainer);
+
+            if (!hasStartedOnce) {
+                unlockSound();
+                startTimer();
+            } else {
+                toggleMode();
+            }
+        });
+
+        timerContainer.addEventListener('click', toggleTimer);
+
+        document.body.addEventListener('click', unlockSound, { once: true });
+
+        updateSettingsInputs();
+        saveSettings(false);
+        updateDisplay();
+    </script>
+</body>
+</html>
